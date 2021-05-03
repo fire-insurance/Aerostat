@@ -17,7 +17,7 @@ namespace Aerostat.Models
         private double deltaTemp;
         private double airCoolingCoefficient;
         private bool overheat = false;
-        private double airMass;
+        private double casingAirMass;
         private double airDensity;
         private double energyNeeded; // Q = c * m * dt - энергия на нагрев воздуха в оболочке на 1 градус
         private double energyGiven; // Энергия, которую передает горелка аэростата
@@ -271,98 +271,58 @@ namespace Aerostat.Models
             airCoolingCoefficient = 0.0;
         }
 
+        private uint ChangeImg(uint direction, uint TypeNumber, uint ImgQuantity) //Do not repeat yourself
+        {
+            if (direction == 1) //Если нажата кнопка выбора следующей картинки
+            {
+                if (TypeNumber < ImgQuantity)
+                {
+                    TypeNumber++;
+                }
+                else
+                {
+                    TypeNumber = 1;
+                }
+            }
+            else if (direction == 0) // Если нажата кнопка выбора предыдущей картинки
+            {
+                if (TypeNumber > 1)
+                {
+                    TypeNumber--;
+                }
+                else
+                {
+                    TypeNumber = ImgQuantity;
+                }
+            }
+
+            return TypeNumber;
+        }
+
         public void ChangeCasingImg(uint direction) // Функция смены изображения оболочки
         {
             uint CasingImageQuantity = 3;
-
-            if (direction == 1) //Если нажата кнопка выбора следующей оболочки
-            {
-                if (CasingTypeNumber < CasingImageQuantity)
-                {
-                    CasingTypeNumber++;
-                }
-                else
-                {
-                    CasingTypeNumber = 1;
-                }
-            }
-            if (direction == 0) // Если нажата кнопка выбора предыдущей оболочки
-            {
-                if (CasingTypeNumber > 1)
-                {
-                    CasingTypeNumber--;
-                }
-                else
-                {
-                    CasingTypeNumber = CasingImageQuantity;
-                }
-            }
+            CasingTypeNumber = ChangeImg(direction, CasingTypeNumber, CasingImageQuantity);
         }
         public void ChangeHeaterImg(uint direction) // Функция смены изображения горелки
         {
             uint HeaterImageQuantity = 3;
-
-            if (direction == 1) // Если нажата кнопка выбора следующей горелки
-            {
-                if (HeaterTypeNumber < HeaterImageQuantity)
-                {
-                    HeaterTypeNumber++;
-                }
-                else
-                {
-                    HeaterTypeNumber = 1;
-                }
-            }
-
-            if (direction == 0) // Если нажата кнопка выбора предыдущей горелки
-            {
-                if (HeaterTypeNumber > 1)
-                {
-                    HeaterTypeNumber--;
-                }
-                else
-                {
-                    HeaterTypeNumber = HeaterImageQuantity;
-                }
-            }
+            HeaterTypeNumber = ChangeImg(direction, HeaterTypeNumber, HeaterImageQuantity);
         }
         public void ChangeBasketImg(uint direction) // Функция смены изображения корзины
         {
             uint BasketImageQuantity = 3;
-
-            if (direction == 1) // Если нажата кнопка выбора следующей корзины
-            {
-                if (BasketTypeNumber < BasketImageQuantity)
-                {
-                    BasketTypeNumber++;
-                }
-                else
-                {
-                    BasketTypeNumber = 1;
-                }
-            }
-
-            if (direction == 0) // Если нажата кнопка выбора предыдущей горелки
-            {
-                if (BasketTypeNumber > 1)
-                {
-                    BasketTypeNumber--;
-                }
-                else
-                {
-                    BasketTypeNumber = BasketImageQuantity;
-                }
-            }
+            BasketTypeNumber = ChangeImg(direction, BasketTypeNumber, BasketImageQuantity);
         }
 
         public void RecountTotalMass()
         {
             AerostatTotalMass = CasingMass + HeaterMass + BasketMass;
         }
+
         public int CountGravityForce()
         {
             int GravityForce;
-
             GravityForce = (int)Math.Round(AerostatTotalMass * accelerationOfGravity);
 
             return GravityForce;
@@ -370,10 +330,10 @@ namespace Aerostat.Models
         public int CountUpForce()   
         {
             int upforce;
-            double otk = (double)outsideTemp + 273.15; //Пересчет температуры в кельвинах
-            double oik = (double)InsideTemp + 273.15;
+            double outsideTempKelvin = (double)outsideTemp + 273.15; //Пересчет температуры в кельвинах
+            double insideTempKelvin = (double)InsideTemp + 273.15;
 
-            upforce = (int)Math.Round(aerostat.CasingVolume * 4.0 * atmosphericPressure * (1.0 / otk - 1.0 / oik)); // Формула подъемной силы шара (согласно вики)
+            upforce = (int)Math.Round(aerostat.CasingVolume * 4.0 * atmosphericPressure * (1.0 / outsideTempKelvin - 1.0 / insideTempKelvin)); // Формула подъемной силы шара (согласно вики)
             
             aerostatAcceleration = ((double)(upforce - CountGravityForce() ) / (double)AerostatTotalMass); // F = ma => a = F/m
             if (currentHeight <= 1 && aerostatAcceleration <=0)
@@ -384,6 +344,7 @@ namespace Aerostat.Models
 
             return upforce;
         }
+
         public int CountPayload()
         {
             aerostat.Payload = (CountUpForce() - CountGravityForce()) / accelerationOfGravity;
@@ -404,6 +365,7 @@ namespace Aerostat.Models
             }
             timer.Change(Timeout.Infinite, Timeout.Infinite);
         }
+
         private void RecountFlightParameters(object state)
         {       
             ascendingSpeed += aerostatAcceleration/10;
@@ -411,15 +373,14 @@ namespace Aerostat.Models
             pixelsUp = (int)Math.Round(currentHeight * 5);
             deltaHeight += ascendingSpeed;
 
-            if (deltaHeight >= 50)
+            if (deltaHeight >= 50) //На каждые 50 метров разницы высоты требуется изменить температуру и атм. давление и пересчитать подъемную силу
             {
                 deltaHeight = 0;
                 outsideTemp -= 0.15;
                 atmosphericPressure = (int)Math.Round(760 * Math.Exp(-0.02896 * accelerationOfGravity * currentHeight / (8.314 * (outsideTemp + 273.15))));
                 CountUpForce();
             }
-
-            if (deltaHeight <= -50)
+            else if (deltaHeight <= -50)
             {
                 deltaHeight = 0;
                 outsideTemp += 0.15;
@@ -429,14 +390,14 @@ namespace Aerostat.Models
             
             ActivateHeater();
 
-            if (currentHeight + ascendingSpeed >= 10000 && ascendingSpeed > 0)
+            if (currentHeight + ascendingSpeed >= 10000 && ascendingSpeed > 0) //Установка ограничений движения подъема и падения
             {
                 currentHeight = 10000;
                 pixelsUp = (int)Math.Round(currentHeight * 5);
                 CountUpForce();
                 return;
             }
-            if (currentHeight <= 30 && ascendingSpeed < 0)
+            else if (currentHeight <= 30 && ascendingSpeed < 0)
             {
                 currentHeight = 0;
                 ascendingSpeed = 0;
@@ -447,7 +408,6 @@ namespace Aerostat.Models
         }
         private void ActivateHeater()
         {
-            
             deltaTemp += Math.Round(energyGiven / energyNeeded, 1) - airCoolingCoefficient; // Изменять плотность воздуха каждые +-10 градусов температуры воздуха в оболочке
 
             if (deltaTemp >= 10.0)
@@ -455,16 +415,15 @@ namespace Aerostat.Models
                 deltaTemp = 0.0;
                 airDensity -= 0.03;
             }
-
-            if (deltaTemp <= -10.0)
+            else if (deltaTemp <= -10.0)
             {
                 deltaTemp = 0.0;
                 airDensity += 0.03;
             }
 
-            airMass = airDensity * aerostat.CasingVolume;
+            casingAirMass = airDensity * aerostat.CasingVolume;
 
-            energyNeeded = 0.717 * airMass; // В Джоулях
+            energyNeeded = 0.717 * casingAirMass; // В Джоулях
             energyGiven = HeaterCurrentPower * 1000000 / 3600; // Вт*секунду = Джоуль
 
             if (aerostat.InsideTemp - outsideTemp >= 50)
@@ -487,7 +446,6 @@ namespace Aerostat.Models
             {
                 overheat = true;
             }
-
         }
     }
 }
